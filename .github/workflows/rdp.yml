@@ -1,21 +1,43 @@
-name: RDP
+# WARNING: This script may violate GitHub's Terms of Service and is a security risk.
+# Use only on private repositories for legitimate, short-term debugging.
+# Do NOT use weak passwords or commit secrets directly to this file.
+
+name: RDP Connection (Use with Caution)
 
 on: [workflow_dispatch]
 
 jobs:
   build:
     runs-on: windows-latest
-    steps:
-      - name: Download ngrok
-        run: |
-          Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-stable-windows-amd64.zip -OutFile ngrok.zip
-          Expand-Archive ngrok.zip
-          ./ngrok.exe authtoken YOUR_AUTH_TOKEN
+    # The maximum runtime for a job is 6 hours (360 minutes).
+    timeout-minutes: 360
 
-      - name: Enable RDP
+    steps:
+      - name: Download and setup ngrok
         run: |
-          net user kamel123 MyStrong123 /add
+          # Download and unzip ngrok
+          Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -OutFile ngrok.zip
+          Expand-Archive ngrok.zip
+          
+          # Authenticate ngrok using the secret
+          ./ngrok.exe authtoken ${{ secrets.NGROK_AUTHTOKEN }}
+
+      - name: Create User and Enable RDP
+        run: |
+          # Create a new user with the password from secrets
+          net user kamel123 ${{ secrets.RDP_PASSWORD }} /add
+          
+          # Add the new user to the Administrators group
           net localgroup administrators kamel123 /add
+          
+          # Enable Remote Desktop connections
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name 'fDenyTSConnections' -Value 0
+          
+          # Open the RDP port in the Windows Firewall
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          ./ngrok.exe tcp 3389
+
+      - name: Start Ngrok Tunnel and Keep Alive
+        run: |
+          # Start the ngrok tunnel in the background
+          # The output will show you the TCP address to connect to (e.g., 0.tcp.ngrok.io:12345)
+          ./ngrok.exe tcp 3389 --log=stdout
